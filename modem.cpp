@@ -110,8 +110,8 @@ bool modemCheckAttached(struct modem *modem, int timeout)
 float modemReadFloat(struct modem *modem, int timeout)
 {
   modem->serial->setTimeout(timeout);
-  short halffloat;
-  modem->serial->readBytes((char *)&halffloat, sizeof(halffloat));
+  unsigned halffloat;
+  modem->serial->readBytes((char *)&halffloat, 2);
   float fullfloat;
   halfp2singles(&fullfloat, &halffloat, 1);
   return fullfloat;

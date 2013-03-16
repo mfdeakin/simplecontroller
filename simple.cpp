@@ -47,8 +47,10 @@ void setup(void)
 
 void loop()
 {
-  motorCheckAmp(kayak.motor);
-  motorCheckVolt(kayak.motor);
+  /* Hack for testing */
+  kayak.forwardpwr = modemReadFloat(kayak.modem, 100);
+  kayak.rotationpwr = modemReadFloat(kayak.modem, 100);
+  motorSetSpeed(kayak.motor, kayak.forwardpwr, kayak.rotationpwr);
 }
 
 // void loop(void)

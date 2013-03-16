@@ -12,6 +12,7 @@ bool motorCheckAttached(struct motorctrl *motor, int timeout);
 char motorReadByte(USARTClass *serial);
 void motorWriteString(USARTClass *serial, const char *str);
 void motorWriteByte(USARTClass *serial, byte b);
+void motorWriteBytes(USARTClass *serial, const void *bytes, size_t len);
 
 struct motorctrl *motorInit(USARTClass *serial, int timeout)
 {
@@ -33,11 +34,6 @@ struct motorctrl *motorInit(USARTClass *serial, int timeout)
 void motorFree(struct motorctrl *motor)
 {
   free(motor);
-}
-
-void motorSetSpeed(float forward, float rotate)
-{
-  
 }
 
 struct channelpair motorCheckAmp(struct motorctrl *motor)
@@ -120,6 +116,29 @@ bool motorWriteCmd(struct motorctrl *motor, const char *cmd,
   return true;
 }
 
+void motorSetSpeed(struct motorctrl *motor, float fwd, float rot)
+{
+  int forward = fwd * 0x7F,
+    rotation = rot * 0x7F;
+  char cmdA = 'A',
+    cmdB = 'B';
+  if(forward < 0) {
+    forward = -forward;
+    cmdA = 'a';
+  }
+  motorWriteByte(motor->serial, '!');
+  motorWriteByte(motor->serial, cmdA);
+  motorWriteBytes(motor->serial, &forward, sizeof(rotation));
+  motor->serial->flush();
+  if(rotation < 0) {
+    rotation = -rotation;
+    cmdB = 'b';
+  }
+  motorWriteByte(motor->serial, '!');
+  motorWriteByte(motor->serial, cmdB);
+  motorWriteBytes(motor->serial, &rotation, sizeof(rotation));
+}
+
 bool motorCheckAttached(struct motorctrl *motor, int timeout)
 {
   const char *states = "OK";
@@ -183,6 +202,14 @@ void motorWriteString(USARTClass *serial, const char *str)
 {
   for(int i = 0; str[i]; i++) {
     motorWriteByte(serial, str[i]);
+  }
+}
+
+void motorWriteBytes(USARTClass *serial, const void *bytes, size_t len)
+{
+  byte *b = (byte *)bytes;
+  for(int i = 0; i < len; i++) {
+    motorWriteByte(serial, b[i]);
   }
 }
 
