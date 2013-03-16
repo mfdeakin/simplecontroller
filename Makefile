@@ -1,4 +1,3 @@
-#TODO: Implement an autoreset function so that the user doesn't have to erase the Arduino
 #
 #Usage: Set ARDDIR to the directory containing the github repository found here:
 #https://github.com/arduino/Arduino
@@ -27,7 +26,7 @@ CFLAGS=-g -Os -w -ffunction-sections -fdata-sections -nostdlib --param max-inlin
 CXXFLAGS=-g -Os -w -ffunction-sections -fdata-sections -nostdlib --param max-inline-insns-single=500 -fno-rtti -fno-exceptions -Dprintf=iprintf -mcpu=cortex-m3 -DF_CPU=84000000L -DARDUINO=152 -D__SAM3X8E__ -mthumb -DUSB_PID=0x003e -DUSB_VID=0x2341 -DUSBCON
 LINKFLAGS=-Os -Wl,--gc-sections -mcpu=cortex-m3 -T/home/michael/Documents/Programming/arduino/Arduino/build/linux/work/hardware/arduino/sam/variants/arduino_due_x/linker_scripts/gcc/flash.ld -Wl,--cref -Wl,--check-sections -Wl,--gc-sections -Wl,--entry=Reset_Handler -Wl,--unresolved-symbols=report-all -Wl,--warn-common -Wl,--warn-section-align -Wl,--warn-unresolved-symbols 
 
-OBJECTS=simple.o list.o
+OBJECTS=simple.o scheduler.o modem.o motor.o list.o heap.o ieeehalfprecision.o
 
 $(OBJECTOUTDIR)/program.cpp.bin: $(OBJECTS)
 	@echo "Linking program"
@@ -35,8 +34,11 @@ $(OBJECTOUTDIR)/program.cpp.bin: $(OBJECTS)
 	@echo "Creating binary"
 	@$(CXXOBJCOPY) -O binary $(OBJECTOUTDIR)/program.cpp.elf $(OBJECTOUTDIR)/program.cpp.bin
 
+#Open and close a serial connection to the Arduino at 1200 baud
+#to erase the memory of the microprocessor
 upload: $(OBJECTOUTDIR)/program.cpp.bin
 	@echo "Uploading program"
+	@./erase.py $(PORT)
 	@$(UPLOAD) --port=$(PORT) $(UPLOADOPTS) $(OBJECTOUTDIR)/program.cpp.bin -R
 
 %.o: %.cpp

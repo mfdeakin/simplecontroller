@@ -2,6 +2,10 @@
 #ifndef _LIST_H_
 #define _LIST_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct list list;
 
 list *listCreate();
@@ -15,6 +19,10 @@ int listSize(list *lst);
 
 void listMoveBack(list *lst);
 void listMoveForward(list *lst);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
 
