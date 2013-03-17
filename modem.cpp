@@ -13,6 +13,8 @@ const int GOODRESPONSELEN = 2;
 
 const char *CMD_RESET = "ATZ\n";
 
+float flthalftosingle(void *value);
+
 #define PACKETSIZE 4
 
 enum modemstate {
@@ -201,19 +203,13 @@ void modemUpdate(struct modem *modem)
 
 float modemForwardPwr(struct modem *modem)
 {
-  float pwr;
-  if(halfp2singles(&pwr, modem->prevpacket, 1)) {
-    DEBUGSERIAL.print("Not in IEEE 16 bit format!\r\n");
-  }
+  float pwr = flthalftosingle(modem->prevpacket);;
   return pwr;
 }
 
 float modemRotationPwr(struct modem *modem)
 {
-  float pwr;
-  if(halfp2singles(&pwr, &modem->prevpacket[2], 1)) {
-    DEBUGSERIAL.print("Not in IEEE 16 bit format!\r\n");
-  }
+  float pwr = flthalftosingle(&modem->prevpacket[2]);
   return pwr;
 }
 
@@ -244,7 +240,7 @@ float modemReadFloat(struct modem *modem, int timeout)
   unsigned halffloat;
   modem->serial->readBytes((char *)&halffloat, 2);
   float fullfloat;
-  halfp2singles(&fullfloat, &halffloat, 1);
+  // flt(&fullfloat, &halffloat, 1);
   return fullfloat;
 }
 
@@ -259,4 +255,20 @@ void modemClear(USARTClass *serial)
    * so it doesn't waste CPU cycles */
   while(serial->available())
     serial->read();
+}
+
+float flthalftosingle(void *value)
+{
+  union {
+    float fp;
+    byte bytes[4];
+  } data;
+  byte *source = (byte *)value;
+  byte sign = source[0] & 0x80;
+  byte exp = (source[0] & 0x7C >> 2) - 15 + 127;
+  short mantissa = ((source[0] & 3) << 8) + source[1];
+  data.bytes[0] = sign | (exp >> 1);
+  data.bytes[1] = (exp << 7) | (mantissa >> 9);
+  data.bytes[2] = mantissa & 0x7F;
+  return data.fp;
 }
