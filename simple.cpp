@@ -10,22 +10,15 @@ void initMotorController(void);
 struct kayak {
   struct modem *modem;
   struct motorctrl *motor;
-  float forwardpwr, rotationpwr;
   unsigned powerused;
 } kayak;
 
-void startTimer(Tc *tc, uint32_t channel, IRQn_Type irq, uint32_t frequency);
 char *readLine(HardwareSerial *sio);
 
 void setup(void)
 {
   DEBUGSERIAL.begin(9600);
-  for(int i = 0;; i++) {
-    DEBUGSERIAL.print(i);
-    DEBUGSERIAL.println(" Hello, there!");
-    DEBUGSERIAL.flush();
-    delay(100);
-  }
+  DEBUGPRINT("Attempting to connect the modem\r\n");
   kayak.modem = modemInit(&MODEMSERIAL, 5000);
   if(!kayak.modem) {
     DEBUGSERIAL.print("Modem not connected\r\n");
@@ -33,6 +26,7 @@ void setup(void)
   else {
     DEBUGSERIAL.print("Modem connected\r\n");
   }
+  DEBUGPRINT("Attempting to connect the motor controller\r\n");
   kayak.motor = motorInit(&MOTORSERIAL, 1000);
   if(!kayak.motor) {
     DEBUGSERIAL.print("Motor controller not connected\r\n");
@@ -40,17 +34,18 @@ void setup(void)
   else {
     DEBUGSERIAL.print("Motor controller connected\r\n");
   }
-  kayak.forwardpwr = 0.0f;
-  kayak.rotationpwr = 0.0f;
-  startTimer(TC1, 0, TC3_IRQn, 4);
 }
 
 void loop()
 {
+  delay(500);
   /* Hack for testing */
-  kayak.forwardpwr = modemReadFloat(kayak.modem, 100);
-  kayak.rotationpwr = modemReadFloat(kayak.modem, 100);
-  motorSetSpeed(kayak.motor, kayak.forwardpwr, kayak.rotationpwr);
+  motorCheckVolt(kayak.motor);
+  motorCheckAmp(kayak.motor);
+  modemUpdate(kayak.modem);
+  if(modemHasPacket(kayak.modem)) {
+    motorSetSpeed(kayak.motor, modemForwardPwr(kayak.modem), modemRotationPwr(kayak.modem));
+  }
 }
 
 // void loop(void)

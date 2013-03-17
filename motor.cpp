@@ -38,12 +38,18 @@ void motorFree(struct motorctrl *motor)
 
 struct channelpair motorCheckAmp(struct motorctrl *motor)
 {
-  DEBUGSERIAL.print("Reading motor amperage\r\n");
   char buffer[6];
-  motorWriteCmd(motor, "?a\n", buffer, sizeof(buffer), 10);
+  if(!motorWriteCmd(motor, "?a", buffer, sizeof(char[6]), 500)) {
+    DEBUGPRINT("Could not read amps!\r\n");
+    return {0, 0};
+  }
   struct channelpair values;
   memset(&values, 0, sizeof(values));
-  int check = sscanf(buffer, "%d\n%d\n", &values.cA, &values.cB);
+  buffer[6] = 0;
+  DEBUGSERIAL.print("Values read:\r\n");
+  DEBUGSERIAL.print(buffer);
+  DEBUGSERIAL.print("\r\n");
+  int check = sscanf(buffer, "%xd\n%xd\n", &values.cA, &values.cB);
   DEBUGSERIAL.print("Read amp values: ");
   DEBUGSERIAL.print(check);
   DEBUGSERIAL.print(", ");
@@ -51,18 +57,23 @@ struct channelpair motorCheckAmp(struct motorctrl *motor)
   DEBUGSERIAL.print(", ");
   DEBUGSERIAL.print(values.cB);
   DEBUGSERIAL.print("\r\n");
-  DEBUGSERIAL.flush();
   return values;
 }
 
 struct channelpair motorCheckVolt(struct motorctrl *motor)
 {
-  DEBUGSERIAL.print("Reading motor voltages\r\n");
-  char buffer[6];
-  motorWriteCmd(motor, "?v\n", buffer, sizeof(buffer), 10);
+  char buffer[7];
+  if(!motorWriteCmd(motor, "?v", buffer, sizeof(char[6]), 500)) {
+    DEBUGPRINT("Could not read voltages!\r\n");
+    return {0, 0};
+  }
   struct channelpair values;
   memset(&values, 0, sizeof(values));
-  int check = sscanf(buffer, "%d\n%d\n", &values.cA, &values.cB);
+  buffer[6] = 0;
+  DEBUGSERIAL.print("Values read:\r\n");
+  DEBUGSERIAL.print(buffer);
+  DEBUGSERIAL.print("\r\n");
+  int check = sscanf(buffer, "%xd\n%xd\n", &values.cA, &values.cB);
   DEBUGSERIAL.print("Read volt values: ");
   DEBUGSERIAL.print(check);
   DEBUGSERIAL.print(", ");
@@ -70,14 +81,18 @@ struct channelpair motorCheckVolt(struct motorctrl *motor)
   DEBUGSERIAL.print(", ");
   DEBUGSERIAL.print(values.cB);
   DEBUGSERIAL.print("\r\n");
-  DEBUGSERIAL.flush();
   return values;
 }
 
 bool motorWriteCmd(struct motorctrl *motor, const char *cmd,
 		   void *buffer, size_t size, int timeout)
 {
+  /* Clear out the serial buffer, we don't want to worry about overflow */
+  while(motor->serial->available())
+    motor->serial->read();
+  DEBUGPRINT(cmd);
   motorWriteString(motor->serial, cmd);
+  motorWriteString(motor->serial, "\r\n");
   motor->serial->flush();
   motor->serial->setTimeout(timeout);
   if(timeout > 0) {
@@ -93,6 +108,12 @@ bool motorWriteCmd(struct motorctrl *motor, const char *cmd,
       cmd[i] && delta * TICKSPERTENMS < timeout;
       delta = GetTickCount() - starttime) {
     char ret = motorReadByte(motor->serial);
+    if(ret == '\r') {
+      DEBUGPRINT("\r\n");
+    }
+    else {
+      DEBUGPRINT(ret);
+    }
     if(ret == cmd[i]) {
       i++;
     }
@@ -126,17 +147,18 @@ void motorSetSpeed(struct motorctrl *motor, float fwd, float rot)
     forward = -forward;
     cmdA = 'a';
   }
-  motorWriteByte(motor->serial, '!');
-  motorWriteByte(motor->serial, cmdA);
-  motorWriteBytes(motor->serial, &forward, sizeof(rotation));
-  motor->serial->flush();
+  char buffer[10];
+  sprintf(buffer, "!%c%02X\r\n", cmdA, forward);
+  DEBUGPRINT(buffer);
+  motorWriteString(motor->serial, buffer);
   if(rotation < 0) {
     rotation = -rotation;
     cmdB = 'b';
   }
-  motorWriteByte(motor->serial, '!');
-  motorWriteByte(motor->serial, cmdB);
-  motorWriteBytes(motor->serial, &rotation, sizeof(rotation));
+  sprintf(buffer, "!%c%02X\r\n", cmdB, rotation);
+  DEBUGPRINT(buffer);
+  motorWriteString(motor->serial, buffer);
+  motor->serial->flush();
 }
 
 bool motorCheckAttached(struct motorctrl *motor, int timeout)

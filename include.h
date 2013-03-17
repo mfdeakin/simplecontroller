@@ -16,4 +16,10 @@
 #define MOTORSERIAL Serial3
 #define MODEMSERIAL Serial2
 
+#ifndef RELEASE_VERSION
+#define DEBUGPRINT(str) DEBUGSERIAL.print(str)
+#else
+#define DEBUGPRINT(str) {}
+#endif
+
 #endif

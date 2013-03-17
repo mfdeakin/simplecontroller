@@ -2,13 +2,18 @@
 #include "modem.h"
 
 const char *IDENTIFY = "+++";
-const char *CONNSTR = "CONNECTED";
-const char *DISCONNSTR = "CARRIER LOST";
+const char *CONNSTR = "CONNECT";
+const int CONNSTRLEN = 7;
+
+const char *DISCONNSTR = "NO CARRIER";
+const int DISCONNSTRLEN = 10;
 
 const char *GOODRESPONSE = "OK\r\n";
 const int GOODRESPONSELEN = 2;
 
 const char *CMD_RESET = "ATZ\n";
+
+#define PACKETSIZE 4
 
 enum modemstate {
   UNATTACHED,
@@ -21,7 +26,15 @@ struct modem {
   enum modemstate state;
   float lngVel;
   float rotVel;
+  int statecheck;
+  /* Buffer is used for recieving packets in SCU's format */
+  char buffer[4];
+  char prevpacket[4];
+  int packetboundary;
+  bool hasPacket;
 };
+
+void modemClear(USARTClass *serial);
 
 struct modem *modemInit(USARTClass *serial, int timeout)
 {
@@ -34,6 +47,8 @@ struct modem *modemInit(USARTClass *serial, int timeout)
   }
   memset(modem, 0, sizeof(*modem));
   modem->state = UNATTACHED;
+  modem->statecheck = 0;
+  modem->packetboundary = 0;
   modem->serial = serial;
   const int modembaud = 19200;
   modem->serial->begin(modembaud);
@@ -77,6 +92,7 @@ bool modemCheckAttached(struct modem *modem, int timeout)
      */
     delay(1000);
     timeout -= 1000;
+    DEBUGPRINT("Checking for modem connection\r\n");
     if(modem->serial->available() > 0) {
       while(modem->serial->available() > 0 && inputstate < GOODRESPONSELEN) {
 	char check = modem->serial->read();
@@ -102,6 +118,103 @@ bool modemCheckAttached(struct modem *modem, int timeout)
     modem->state = UNATTACHED;
     return false;
   }
+  modemClear(modem->serial);
+  modem->serial->write("+++");
+  while(modem->serial->available() == 0);
+  delay(10);
+  modemClear(modem->serial);
+  modem->serial->write("ath\r\n");
+  modem->serial->flush();
+  while(modem->serial->available() == 0);
+  delay(10);
+  modemClear(modem->serial);
+}
+
+void modemUpdate(struct modem *modem)
+{
+  if(modem->serial->available() > 0) {
+    if(modem->state == CONNECTED)
+      DEBUGPRINT("Checking for floating point values or for NO CARRIER\r\n");
+    while(modem->serial->available() > 0) {
+      if(modem->state != CONNECTED) {
+	char check = modem->serial->read();
+	if(CONNSTR[modem->statecheck] == check) {
+	  modem->statecheck++;
+	  if(modem->statecheck >= CONNSTRLEN) {
+	    modem->state = CONNECTED;
+	    modem->statecheck = 0;
+	    DEBUGSERIAL.print("Modem Connected\r\n");
+	    modem->hasPacket = false;
+	    /* Discard all of the other junk */
+	    while(modem->serial->available() > 0 && modem->serial->read() != '\n');
+	    /* An extra byte is sent, remove it */
+	    modem->serial->read();
+	  }
+	}
+	else if(CONNSTR[0] == check) {
+	  modem->statecheck = 1;
+	}
+	else {
+	  modem->statecheck = 0;
+	}
+      }
+      else {
+	/* We must already be connected. Check for NO CARRIER */
+	char check = modem->serial->read();
+	modem->buffer[modem->packetboundary] = check;
+	DEBUGPRINT(check);
+	if(DISCONNSTR[modem->statecheck] == check) {
+	  modem->statecheck++;
+	  if(modem->statecheck >= DISCONNSTRLEN) {
+	    modem->state = ATTACHED;
+	    modem->statecheck = 0;
+	    DEBUGSERIAL.print("Connection lost\r\n");
+	    memset(modem->prevpacket, 0, sizeof(modem->prevpacket));
+	  }
+	}
+	modem->packetboundary = (modem->packetboundary + 1) % 4;
+	if(modem->packetboundary == 0) {
+	  modem->hasPacket = true;
+	  memcpy(modem->prevpacket, modem->buffer, sizeof(modem->prevpacket));
+	}
+      }
+    }
+    if(modem->state == CONNECTED) {
+      DEBUGPRINT("Data read: ");
+      DEBUGPRINT(modem->packetboundary);
+      DEBUGPRINT("\r\nHas Packet: ");
+      DEBUGPRINT(modemHasPacket(modem));
+      DEBUGPRINT("\r\nForward Power: ");
+      DEBUGSERIAL.print(modem->prevpacket[0], HEX);
+      DEBUGSERIAL.print(modem->prevpacket[1], HEX);
+      DEBUGPRINT(" ");
+      DEBUGPRINT(modemForwardPwr(modem));
+      DEBUGPRINT("\r\nRotation Power: ");
+      DEBUGSERIAL.print(modem->prevpacket[2], HEX);
+      DEBUGSERIAL.print(modem->prevpacket[3], HEX);
+      DEBUGPRINT(" ");
+      DEBUGPRINT(modemRotationPwr(modem));
+      DEBUGPRINT("\r\n");
+    }
+  }
+}
+
+float modemForwardPwr(struct modem *modem)
+{
+  float pwr;
+  if(halfp2singles(&pwr, modem->prevpacket, 1)) {
+    DEBUGSERIAL.print("Not in IEEE 16 bit format!\r\n");
+  }
+  return pwr;
+}
+
+float modemRotationPwr(struct modem *modem)
+{
+  float pwr;
+  if(halfp2singles(&pwr, &modem->prevpacket[2], 1)) {
+    DEBUGSERIAL.print("Not in IEEE 16 bit format!\r\n");
+  }
+  return pwr;
 }
 
 /* Reads a 16 bit floating point value
@@ -110,6 +223,24 @@ bool modemCheckAttached(struct modem *modem, int timeout)
 float modemReadFloat(struct modem *modem, int timeout)
 {
   modem->serial->setTimeout(timeout);
+  char buffer[1024];
+  bool cleanup = true;
+  while(cleanup) {
+    buffer[0] = modem->serial->read();
+    if((buffer[0] >= '0' && buffer[0] <= '9') || buffer[0] == '.')
+      cleanup = false;
+  }
+  for(int i = 1; modem->serial->available() && i < 1024; i++) {
+    buffer[i] = modem->serial->read();
+    buffer[i + 1] = 0;
+  }
+  float value;
+  sscanf(buffer, "%f", &value);
+  if(value > 1.0)
+    value = 1.0;
+  else if(value < -1.0)
+    value = -1.0;
+  return value;
   unsigned halffloat;
   modem->serial->readBytes((char *)&halffloat, 2);
   float fullfloat;
@@ -117,18 +248,15 @@ float modemReadFloat(struct modem *modem, int timeout)
   return fullfloat;
 }
 
-bool modemHasPacket(struct modem *modem, size_t size)
+bool modemHasPacket(struct modem *modem)
 {
-  if(modem->serial->available() >= size) {
-    return true;
-  }
-  return false;
+  return modem->hasPacket;
 }
 
-bool modemGetPacket(struct modem *modem, void *mem, size_t size)
+void modemClear(USARTClass *serial)
 {
-  if(modemHasPacket(modem, size)) {
-    
-    return true;
-  }
+  /* Clear the buffer. I'd really rather just hack the Arduino library
+   * so it doesn't waste CPU cycles */
+  while(serial->available())
+    serial->read();
 }
