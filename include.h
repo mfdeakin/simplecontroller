@@ -18,8 +18,10 @@
 
 #ifndef RELEASE_VERSION
 #define DEBUGPRINT(str) DEBUGSERIAL.print(str)
+#define DEBUGPRINTHEX(val) DEBUGSERIAL.print(val, HEX)
 #else
 #define DEBUGPRINT(str) {}
+#define DEBUGPRINTHEX(val) {}
 #endif
 
 #endif

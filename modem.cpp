@@ -147,10 +147,7 @@ void modemUpdate(struct modem *modem)
 	    modem->statecheck = 0;
 	    DEBUGSERIAL.print("Modem Connected\r\n");
 	    modem->hasPacket = false;
-	    /* Discard all of the other junk */
-	    while(modem->serial->available() > 0 && modem->serial->read() != '\n');
-	    /* An extra byte is sent, remove it */
-	    modem->serial->read();
+	    modemClear(modem->serial);
 	  }
 	}
 	else if(CONNSTR[0] == check) {
@@ -164,7 +161,8 @@ void modemUpdate(struct modem *modem)
 	/* We must already be connected. Check for NO CARRIER */
 	char check = modem->serial->read();
 	modem->buffer[modem->packetboundary] = check;
-	DEBUGPRINT(check);
+	DEBUGSERIAL.print("Received data: ");
+	DEBUGSERIAL.println(check, HEX);
 	if(DISCONNSTR[modem->statecheck] == check) {
 	  modem->statecheck++;
 	  if(modem->statecheck >= DISCONNSTRLEN) {
@@ -186,16 +184,19 @@ void modemUpdate(struct modem *modem)
       DEBUGPRINT(modem->packetboundary);
       DEBUGPRINT("\r\nHas Packet: ");
       DEBUGPRINT(modemHasPacket(modem));
+      short actual = (modem->prevpacket[0] << 8) + modem->prevpacket[1];
+      float fwd = modemForwardPwr(modem);
       DEBUGPRINT("\r\nForward Power: ");
-      DEBUGSERIAL.print(modem->prevpacket[0], HEX);
-      DEBUGSERIAL.print(modem->prevpacket[1], HEX);
+      DEBUGSERIAL.print(actual, HEX);
       DEBUGPRINT(" ");
-      DEBUGPRINT(modemForwardPwr(modem));
+      DEBUGPRINT(fwd);
+      actual = (modem->prevpacket[2] << 8) + modem->prevpacket[3];
+      DEBUGPRINT("\r\n");
+      float rot = modemRotationPwr(modem);
       DEBUGPRINT("\r\nRotation Power: ");
-      DEBUGSERIAL.print(modem->prevpacket[2], HEX);
-      DEBUGSERIAL.print(modem->prevpacket[3], HEX);
+      DEBUGSERIAL.print(actual, HEX);
       DEBUGPRINT(" ");
-      DEBUGPRINT(modemRotationPwr(modem));
+      DEBUGPRINT(rot);
       DEBUGPRINT("\r\n");
     }
   }
@@ -203,13 +204,23 @@ void modemUpdate(struct modem *modem)
 
 float modemForwardPwr(struct modem *modem)
 {
-  float pwr = flthalftosingle(modem->prevpacket);;
+  if(modem->state != CONNECTED)
+    return 0;
+  short value = (modem->prevpacket[0] << 8) + modem->prevpacket[1];
+  if(value > 127)
+    value = -value + 127;
+  float pwr = value / 127.0;
   return pwr;
 }
 
 float modemRotationPwr(struct modem *modem)
 {
-  float pwr = flthalftosingle(&modem->prevpacket[2]);
+  if(modem->state != CONNECTED)
+    return 0;
+  short value = (modem->prevpacket[2] << 8) + modem->prevpacket[3];
+  if(value > 127)
+    value = -value + 127;
+  float pwr = value / 127.0;
   return pwr;
 }
 
@@ -261,14 +272,24 @@ float flthalftosingle(void *value)
 {
   union {
     float fp;
-    byte bytes[4];
+    unsigned int val;
   } data;
-  byte *source = (byte *)value;
-  byte sign = source[0] & 0x80;
-  byte exp = (source[0] & 0x7C >> 2) - 15 + 127;
-  short mantissa = ((source[0] & 3) << 8) + source[1];
-  data.bytes[0] = sign | (exp >> 1);
-  data.bytes[1] = (exp << 7) | (mantissa >> 9);
-  data.bytes[2] = mantissa & 0x7F;
+  union src{
+    unsigned short value;
+    unsigned char bytes[2];
+  } *source = (src *)value;
+  int sign = (source->value & 0x8000);
+  sign <<= 24;
+  DEBUGPRINT("\r\nSign: ");
+  DEBUGPRINTHEX(sign);
+  int exp = (((source->value & 0x7C00) >> 10) - 15 + 127);
+  exp <<= 23;
+  DEBUGPRINT("\r\nExponent: ");
+  DEBUGPRINTHEX(exp);
+  int mantissa = (source->value & 0x3ff);
+  mantissa <<= 13;
+  DEBUGPRINT("\r\nMantissa: ");
+  DEBUGPRINTHEX(mantissa);
+  data.val = sign + exp + mantissa;
   return data.fp;
 }

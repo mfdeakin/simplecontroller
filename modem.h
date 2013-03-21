@@ -4,7 +4,6 @@
 
 #include <Arduino.h>
 #include "include.h"
-#include "ieeehalfprecision.h"
 
 struct modem;
 

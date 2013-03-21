@@ -173,11 +173,12 @@ bool motorCheckAttached(struct motorctrl *motor, int timeout)
   timeout *= 10;
   DEBUGSERIAL.print("Connecting motor controller\r\n");
   for(; timeout > 0 && inputstate < statelen;) {
+    DEBUGSERIAL.print("Checking for motor controller connection\r\n");
     for(int i = 0; i < 20; i++)
       motorWriteByte(motor->serial, '\r');
     /* Give the motor controller a chance to respond, wait 100 ms */
-    delay(100);
-    timeout -= 100;
+    delay(50);
+    timeout -= 50;
     if(motor->serial->available() > 0) {
       while(motor->serial->available() > 0 && inputstate < statelen) {
 	char check = motorReadByte(motor->serial);

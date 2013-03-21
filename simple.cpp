@@ -40,10 +40,12 @@ void loop()
 {
   delay(500);
   /* Hack for testing */
-  motorCheckVolt(kayak.motor);
-  motorCheckAmp(kayak.motor);
-  modemUpdate(kayak.modem);
-  if(modemHasPacket(kayak.modem)) {
+  if(kayak.motor) {
+    motorCheckVolt(kayak.motor);
+    motorCheckAmp(kayak.motor);
+    modemUpdate(kayak.modem);
+  }
+  if(kayak.modem && modemHasPacket(kayak.modem) && kayak.motor) {
     motorSetSpeed(kayak.motor, modemForwardPwr(kayak.modem), modemRotationPwr(kayak.modem));
   }
 }

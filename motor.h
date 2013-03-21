@@ -2,7 +2,6 @@
 #ifndef _MOTOR_H_
 #define _MOTOR_H_
 
-#define RELEASE_VERSION
 #include <Arduino.h>
 #include "include.h"
 
