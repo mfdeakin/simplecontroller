@@ -211,6 +211,7 @@ float modemForwardPwr(struct modem *modem)
   if(value > 127)
     value = -value + 127;
   float pwr = value / 127.0;
+  DEBUGPRINT("\r\nForward Power\r\n");
   return fltHalfToSingle(modem->prevpacket);
 }
 
@@ -222,6 +223,7 @@ float modemRotationPwr(struct modem *modem)
   if(value > 127)
     value = -value + 127;
   float pwr = value / 127.0;
+  DEBUGPRINT("\r\nRotation Power\r\n");
   return fltHalfToSingle(&(modem->prevpacket[2]));
 }
 
@@ -305,7 +307,10 @@ float fltHalfToSingle(void *value)
   if(source->value == 0)
     return 0.0;
   int sign = (source->value & 0x8000);
-  sign <<= 24;
+  DEBUGPRINT("\r\nInitial sign: ");
+  DEBUGPRINTHEX(sign);
+  DEBUGPRINT("\r\n");
+  sign <<= 16;
   int exp = (((source->value & 0x7C00) >> 10) - 15 + 127);
   exp <<= 23;
   int mantissa = (source->value & 0x3ff);

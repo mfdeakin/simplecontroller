@@ -27,16 +27,14 @@ class Kayak:
         self.window.connect("key_release_event", self.keyRelease)
         self.window.show()
         
-        self.serial = serial.Serial("/dev/ttyACM0", 19200)
+        self.serial = serial.Serial("/dev/ttyACM1", 19200)
     
     def keyPress(self, widget, event, data = None):
-        print("Key pressed " + str(event.keyval))
         if event.keyval in keyvals:
             self.keystates[keyvals[event.keyval]] = True
         return True
     
     def keyRelease(self, widget, event, data = None):
-        print("Key released " + str(event.keyval))
         if event.keyval in keyvals:
             self.keystates[keyvals[event.keyval]] = False
         return True
@@ -56,6 +54,8 @@ class Kayak:
         elif self.keystates["Right"]:
             chB -= 0.5
         self.serial.write(floattochar(chB))
+        print("Channel A Value: " + str(chA))
+        print("Channel B Value: " + str(chB))
         while self.serial.inWaiting() > 0:
             sys.stdout.write(self.serial.read())
         return True
@@ -78,7 +78,7 @@ def floattochar(f):
     fhexstr = float.hex(f)
     if fhexstr[0] == '-':
         negative = True
-        fhexstr[1:]
+        fhexstr = fhexstr[1:]
     else:
         negative = False
     mantissa = fhexstr[4:17]
@@ -129,6 +129,6 @@ try:
         print("Sent " + str(s.write(cmd)) + " bytes")
         while s.inWaiting() > 0:
             sys.stdout.write(s.read())
-except KeyboardInterrupt, TypeError, EOFError:
+except KeyboardInterrupt, EOFError:
     print("Closing serial port")
     s.close()
