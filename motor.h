@@ -2,6 +2,8 @@
 #ifndef _MOTOR_H_
 #define _MOTOR_H_
 
+#define RELEASE_VERSION
+
 #include <Arduino.h>
 #include "include.h"
 
@@ -12,7 +14,7 @@ struct channelpair {
 };
 
 struct motorctrl *motorInit(USARTClass *serial, int timeout);
-/* Frees the modem, disconnects the modem */
+/* Frees the motor controller, turns off the motors */
 void motorFree(struct modem *);
 
 bool motorWriteCmd(struct motorctrl *, const char *cmd,

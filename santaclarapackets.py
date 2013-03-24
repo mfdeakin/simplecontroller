@@ -1,5 +1,6 @@
 #!python
 import sys, serial, platform, pygtk, gtk, gobject
+from numpy import frombuffer, float16
 
 keyvals = {
     65362: "Up",
@@ -17,7 +18,7 @@ class Kayak:
             "Left": False
         }
         
-        self.timerId = gobject.timeout_add(10, self.timerEvent)
+        self.timerId = gobject.timeout_add(1000, self.timerEvent)
         
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
         self.window.connect("delete_event", self.deleteEvent)
@@ -26,7 +27,7 @@ class Kayak:
         self.window.connect("key_release_event", self.keyRelease)
         self.window.show()
         
-        #self.serial = serial.Serial("/dev/ttyACM1", 19200)
+        self.serial = serial.Serial("/dev/ttyACM0", 19200)
     
     def keyPress(self, widget, event, data = None):
         print("Key pressed " + str(event.keyval))
@@ -44,19 +45,19 @@ class Kayak:
         print("Timer event!")
         chA = 0
         if self.keystates["Up"]:
-            chA += 127
+            chA += 0.5
         elif self.keystates["Down"]:
-            chA -= 127
-        #self.serial.write(inttochar(chA))
+            chA -= 0.5
+        self.serial.write(floattochar(chA))
         
         chB = 0
         if self.keystates["Left"]:
-            chB += 127
+            chB += 0.5
         elif self.keystates["Right"]:
-            chB -= 127
-        #self.serial.write(inttochar(chB))
-        #while self.serial.inWaiting() > 0:
-            #sys.stdout.write(self.serial.read())
+            chB -= 0.5
+        self.serial.write(floattochar(chB))
+        while self.serial.inWaiting() > 0:
+            sys.stdout.write(self.serial.read())
         return True
     
     def deleteEvent(self, widget, event, data = None):
@@ -81,7 +82,7 @@ def floattochar(f):
     else:
         negative = False
     mantissa = fhexstr[4:17]
-    exponent = (int(fhexstr[19:]) + 15) << 10
+    exponent = (int(fhexstr[18:]) + 15) << 10
     fraction = int(mantissa[:3], 16) >> 2
     finalval = exponent + fraction
     if negative:
@@ -93,10 +94,12 @@ def floattochar(f):
           "\nFinal value: " + str(finalval) +
           "\nByte 1: " + hex(byte1) + "\nByte 2: " + hex(byte2))
     byte = bytearray(2)
-    byte[0] = chr(byte1)
-    byte[1] = chr(byte2)
+    byte[1] = chr(byte1)
+    byte[0] = chr(byte2)
     print("Byte 0: " + str(byte[0]))
     print("Byte 1: " + str(byte[1]))
+    print("Numpy result: " +
+          str(frombuffer(byte, dtype=float16)[0]))
     return byte
 
 def inttochar(val):
@@ -116,16 +119,16 @@ try:
     while True:
         cmd = raw_input()
         try:
-            val = int(cmd)
-            cmd = inttochar(val)
+            val = float(cmd)
+            cmd = floattochar(val)
         except ValueError:
             print("Not a floating point value")
             if cmd != "+++":
                 cmd += "\r\n"
-        print("Sending commend: " + str(cmd))
+        print("Sending command: " + str(cmd))
         print("Sent " + str(s.write(cmd)) + " bytes")
         while s.inWaiting() > 0:
             sys.stdout.write(s.read())
-except KeyboardInterrupt, TypeError:
+except KeyboardInterrupt, TypeError, EOFError:
     print("Closing serial port")
     s.close()

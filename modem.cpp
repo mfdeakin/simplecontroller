@@ -13,7 +13,8 @@ const int GOODRESPONSELEN = 2;
 
 const char *CMD_RESET = "ATZ\n";
 
-float flthalftosingle(void *value);
+float fltHalfToSingle(void *value);
+float fltSingleToHalf(void *value);
 
 #define PACKETSIZE 4
 
@@ -210,7 +211,7 @@ float modemForwardPwr(struct modem *modem)
   if(value > 127)
     value = -value + 127;
   float pwr = value / 127.0;
-  return pwr;
+  return fltHalfToSingle(modem->prevpacket);
 }
 
 float modemRotationPwr(struct modem *modem)
@@ -221,7 +222,7 @@ float modemRotationPwr(struct modem *modem)
   if(value > 127)
     value = -value + 127;
   float pwr = value / 127.0;
-  return pwr;
+  return fltHalfToSingle(&(modem->prevpacket[2]));
 }
 
 /* Reads a 16 bit floating point value
@@ -268,28 +269,58 @@ void modemClear(USARTClass *serial)
     serial->read();
 }
 
-float flthalftosingle(void *value)
+short fltSingleToHalf(float value)
 {
-  union {
+  if(value == 0.00)
+    return 0;
+  int negative = ((((*((int *) &value)) & 0x80000000)) >> 16);
+  int exponent = ((((*((int *) &value)) & 0x7f800000) >> 23) - 127 + 15) << 10;
+  int mantissa = ((((*((int *) &value)) & 0x007fe000)) >> 13);
+  DEBUGPRINT("Hex form: 0x");
+  DEBUGPRINTHEX(*((unsigned *)&value));
+  DEBUGPRINT("\r\nConverting down\r\nNegative: ");
+  DEBUGPRINTHEX(negative);
+  DEBUGPRINT("\r\nExponent: ");
+  DEBUGPRINTHEX(exponent);
+  DEBUGPRINT("\r\nMantissa: ");
+  DEBUGPRINTHEX(mantissa);
+  DEBUGPRINT("\r\n");
+  negative &= 0x8000;
+  exponent &= 0x7c00;
+  mantissa &= 0x03ff;
+  short final = negative + exponent + mantissa;
+  return final;
+}
+
+float fltHalfToSingle(void *value)
+{
+  union dest {
     float fp;
     unsigned int val;
   } data;
-  union src{
+  union src {
     unsigned short value;
     unsigned char bytes[2];
-  } *source = (src *)value;
+  } *source = (union src *)value;
+  if(source->value == 0)
+    return 0.0;
   int sign = (source->value & 0x8000);
   sign <<= 24;
-  DEBUGPRINT("\r\nSign: ");
-  DEBUGPRINTHEX(sign);
   int exp = (((source->value & 0x7C00) >> 10) - 15 + 127);
   exp <<= 23;
-  DEBUGPRINT("\r\nExponent: ");
-  DEBUGPRINTHEX(exp);
   int mantissa = (source->value & 0x3ff);
   mantissa <<= 13;
+  DEBUGPRINT("Converting up:\r\nValue: ");
+  DEBUGPRINTHEX(source->value);
+  DEBUGPRINT("\r\nSign: ");
+  DEBUGPRINT(sign);
+  DEBUGPRINT("\r\nExponent: ");
+  DEBUGPRINT(exp);
   DEBUGPRINT("\r\nMantissa: ");
-  DEBUGPRINTHEX(mantissa);
+  DEBUGPRINT(mantissa);
+  DEBUGPRINT("\r\nResult: ");
   data.val = sign + exp + mantissa;
+  DEBUGPRINT(data.fp);
+  DEBUGPRINT("\r\n");
   return data.fp;
 }

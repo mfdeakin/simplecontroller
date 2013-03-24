@@ -39,7 +39,7 @@ void motorFree(struct motorctrl *motor)
 struct channelpair motorCheckAmp(struct motorctrl *motor)
 {
   char buffer[6];
-  if(!motorWriteCmd(motor, "?a", buffer, sizeof(char[6]), 500)) {
+  if(!motorWriteCmd(motor, "?a", buffer, sizeof(char[6]), 1000)) {
     DEBUGPRINT("Could not read amps!\r\n");
     return {0, 0};
   }
@@ -63,7 +63,7 @@ struct channelpair motorCheckAmp(struct motorctrl *motor)
 struct channelpair motorCheckVolt(struct motorctrl *motor)
 {
   char buffer[7];
-  if(!motorWriteCmd(motor, "?v", buffer, sizeof(char[6]), 500)) {
+  if(!motorWriteCmd(motor, "?v", buffer, sizeof(char[6]), 1000)) {
     DEBUGPRINT("Could not read voltages!\r\n");
     return {0, 0};
   }
