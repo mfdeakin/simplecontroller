@@ -35,6 +35,7 @@ struct modem {
   char prevpacket[4];
   int packetboundary;
   bool hasPacket;
+  bool needsPacket;
 };
 
 void modemClear(USARTClass *serial);
@@ -148,6 +149,7 @@ void modemUpdate(struct modem *modem)
 	    modem->statecheck = 0;
 	    DEBUGSERIAL.print("Modem Connected\r\n");
 	    modem->hasPacket = false;
+	    modem->needsPacket = false;
 	    modemClear(modem->serial);
 	  }
 	}
@@ -175,6 +177,7 @@ void modemUpdate(struct modem *modem)
 	}
 	modem->packetboundary = (modem->packetboundary + 1) % 4;
 	if(modem->packetboundary == 0) {
+	  modem->needsPacket = true;
 	  modem->hasPacket = true;
 	  memcpy(modem->prevpacket, modem->buffer, sizeof(modem->prevpacket));
 	}
@@ -203,6 +206,16 @@ void modemUpdate(struct modem *modem)
   }
 }
 
+void modemSendPacket(struct modem *modem, void *packet, size_t size)
+{
+  if(modem->state != CONNECTED)
+    return;
+  byte *b = (byte *)packet;
+  for(int i = 0; i < size; i++) {
+    modem->serial->write(b[i]);
+  }
+}
+
 float modemForwardPwr(struct modem *modem)
 {
   if(modem->state != CONNECTED)
@@ -227,37 +240,6 @@ float modemRotationPwr(struct modem *modem)
   return fltHalfToSingle(&(modem->prevpacket[2]));
 }
 
-/* Reads a 16 bit floating point value
- * Returns an equivalent 32 bit floating point value
- */
-float modemReadFloat(struct modem *modem, int timeout)
-{
-  modem->serial->setTimeout(timeout);
-  char buffer[1024];
-  bool cleanup = true;
-  while(cleanup) {
-    buffer[0] = modem->serial->read();
-    if((buffer[0] >= '0' && buffer[0] <= '9') || buffer[0] == '.')
-      cleanup = false;
-  }
-  for(int i = 1; modem->serial->available() && i < 1024; i++) {
-    buffer[i] = modem->serial->read();
-    buffer[i + 1] = 0;
-  }
-  float value;
-  sscanf(buffer, "%f", &value);
-  if(value > 1.0)
-    value = 1.0;
-  else if(value < -1.0)
-    value = -1.0;
-  return value;
-  unsigned halffloat;
-  modem->serial->readBytes((char *)&halffloat, 2);
-  float fullfloat;
-  // flt(&fullfloat, &halffloat, 1);
-  return fullfloat;
-}
-
 bool modemHasPacket(struct modem *modem)
 {
   return modem->hasPacket;
@@ -269,6 +251,11 @@ void modemClear(USARTClass *serial)
    * so it doesn't waste CPU cycles */
   while(serial->available())
     serial->read();
+}
+
+bool modemNeedsPacket(struct modem *modem)
+{
+  return modem->needsPacket;
 }
 
 short fltSingleToHalf(float value)

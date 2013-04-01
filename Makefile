@@ -21,12 +21,12 @@ CXXOBJCOPY=$(ARDDIR)/build/linux/work/hardware/tools/g++_arm_none_eabi/bin/arm-n
 UPLOAD=$(ARDDIR)/build/linux/work/hardware/tools/bossac
 UPLOADOPTS=-U false -e -w -v -b
 OBJECTOUTDIR=objects
-INCDIRS=-I$(SYSDIR)/libsam -I$(SYSDIR)/CMSIS/CMSIS/Include/ -I$(SYSDIR)/CMSIS/Device/ATMEL/ -I$(SAMDIR)/cores/arduino -I$(SAMDIR)/variants/arduino_due_x
+INCDIRS=-I$(SYSDIR)/libsam -I$(SYSDIR)/CMSIS/CMSIS/Include/ -I$(SAMDIR)/libraries/ -I$(SYSDIR)/CMSIS/Device/ATMEL/ -I$(SAMDIR)/cores/arduino -I$(SAMDIR)/variants/arduino_due_x
 CFLAGS=-g -Os -w -ffunction-sections -fdata-sections -nostdlib --param max-inline-insns-single=500 -Dprintf=iprintf -mcpu=cortex-m3 -DF_CPU=84000000L -DARDUINO=152 -D__SAM3X8E__ -mthumb -DUSB_PID=0x003e -DUSB_VID=0x2341 -DUSBCON
 CXXFLAGS=-g -Os -w -ffunction-sections -fdata-sections -nostdlib --param max-inline-insns-single=500 -fno-rtti -fno-exceptions -Dprintf=iprintf -mcpu=cortex-m3 -DF_CPU=84000000L -DARDUINO=152 -D__SAM3X8E__ -mthumb -DUSB_PID=0x003e -DUSB_VID=0x2341 -DUSBCON
 LINKFLAGS=-Os -Wl,--gc-sections -mcpu=cortex-m3 -T/home/michael/Documents/Programming/arduino/Arduino/build/linux/work/hardware/arduino/sam/variants/arduino_due_x/linker_scripts/gcc/flash.ld -Wl,--cref -Wl,--check-sections -Wl,--gc-sections -Wl,--entry=Reset_Handler -Wl,--unresolved-symbols=report-all -Wl,--warn-common -Wl,--warn-section-align -Wl,--warn-unresolved-symbols 
 
-OBJECTS=simple.o scheduler.o modem.o motor.o list.o heap.o
+OBJECTS=simple.o scheduler.o modem.o motor.o list.o heap.o compass.o TinyGPS.o
 
 $(OBJECTOUTDIR)/program.cpp.bin: $(OBJECTS)
 	@echo "Linking program"
@@ -79,6 +79,7 @@ core.a:
 	@$(CXX) -c $(CXXFLAGS) $(INCDIRS) $(SAMDIR)/cores/arduino/WString.cpp -o $(OBJECTOUTDIR)/WString.cpp.o
 	@$(CXX) -c $(CXXFLAGS) $(INCDIRS) $(SAMDIR)/cores/arduino/main.cpp -o $(OBJECTOUTDIR)/main.cpp.o
 	@$(CXX) -c $(CXXFLAGS) $(INCDIRS) $(SAMDIR)/cores/arduino/USARTClass.cpp -o $(OBJECTOUTDIR)/USARTClass.cpp.o
+	@$(CXX) -c $(CXXFLAGS) $(INCDIRS) $(SAMDIR)/libraries/Wire/Wire.cpp -o $(OBJECTOUTDIR)/Wire.cpp.o
 	@$(CXX) -c $(CXXFLAGS) $(INCDIRS) $(SAMDIR)/variants/arduino_due_x/variant.cpp -o $(OBJECTOUTDIR)/variant.cpp.o
 
 	@$(CXXAR) rcs $(OBJECTOUTDIR)/core.a $(OBJECTOUTDIR)/hooks.c.o
@@ -106,4 +107,5 @@ core.a:
 	@$(CXXAR) rcs $(OBJECTOUTDIR)/core.a $(OBJECTOUTDIR)/WString.cpp.o
 	@$(CXXAR) rcs $(OBJECTOUTDIR)/core.a $(OBJECTOUTDIR)/main.cpp.o
 	@$(CXXAR) rcs $(OBJECTOUTDIR)/core.a $(OBJECTOUTDIR)/USARTClass.cpp.o
+	@$(CXXAR) rcs $(OBJECTOUTDIR)/core.a $(OBJECTOUTDIR)/Wire.cpp.o
 	@$(CXXAR) rcs $(OBJECTOUTDIR)/core.a $(OBJECTOUTDIR)/variant.cpp.o

@@ -1,5 +1,6 @@
 
 #include "scheduler.h"
+#include "include.h"
 
 #include <Arduino.h>
 #include <assert.h>
@@ -30,18 +31,13 @@ void registerTimer(unsigned deltams, void (*proc)(void *data), void *data)
 	startTimer(TC1, 0, TC3_IRQn, freq);
 }
 
-// void TC3_Handler()
-// {
-// 	noInterrupts();
-// 	event *evt = (event *)hpTop(queued);
-// 	event *next = (event *)hpPeek(queued);
-// 	interrupts();
-// 	evt->proc(evt->data);
-// 	free(evt);
-// 	float freq = 1000.0f / next->rticks;
-// 	TC_GetStatus(TC1, 0);
-// 	startTimer(TC1, 0, TC3_IRQn, freq);
-// }
+void TC3_Handler()
+{
+	noInterrupts();
+	interrupts();
+	DEBUGSERIAL.print("Timer Interrupt\r\n");
+	TC_GetStatus(TC1, 0);
+}
 
 void schedulerInit(void)
 {

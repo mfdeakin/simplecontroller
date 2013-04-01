@@ -25,5 +25,7 @@ float modemRotationPwr(struct modem *modem);
 
 bool modemHasPacket(struct modem *);
 bool modemGetPacket(struct modem *, void *mem, size_t size);
+bool modemNeedsPacket(struct modem *);
+void modemSendPacket(struct modem *, void *packet, size_t size);
 
 #endif

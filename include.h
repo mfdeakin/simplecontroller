@@ -13,6 +13,7 @@
 #define TICKSPERTENMS 16
 
 #define DEBUGSERIAL Serial
+#define GPSSERIAL Serial1
 #define MOTORSERIAL Serial3
 #define MODEMSERIAL Serial2
 
