@@ -13,6 +13,9 @@ const int GOODRESPONSELEN = 2;
 
 const char *CMD_RESET = "ATZ\n";
 
+/* The ICL3232 chip has a minimum support for a maximum of 250000 bits/s */
+const int MODEMBAUD = 250000;
+
 float fltHalfToSingle(void *value);
 float fltSingleToHalf(void *value);
 
@@ -25,41 +28,69 @@ enum modemstate {
 };
 
 struct modem {
+  /* Arduino object used for TTL serial I/O */
   USARTClass *serial;
+  /* The state of the modem, fast method of keeping
+   * track of whether the modem is attached, connected, or neither
+   */
   enum modemstate state;
-  float lngVel;
-  float rotVel;
+  /* Used to keep track of the state of the input.
+   * Corresponds to an index in one of the strings above.
+   */
   int statecheck;
-  /* Buffer is used for recieving packets in SCU's format */
+  /* The following corresponds with SCU's specifications */
+  /* A buffer for kayak commands, sent as 2 half precision values.
+   * Used to temporarily store the next packets values
+   */
   char buffer[4];
+  /* The last complete packet recieved.
+   * Only modified when a full command has been sent
+   */
   char prevpacket[4];
+  /* Where the packet in transit is relative to the number of bytes needed
+   * for a full packet to be recieved.
+   */
   int packetboundary;
+  /* Whether or not a packet has been recieved since connecting to the
+   * other modem
+   */
   bool hasPacket;
+  /* Whether or not SCU's base station expects a packet currently */
   bool needsPacket;
 };
 
+/* Terrible thing, used to remove any unneeded data from the serial object.
+ * Preconditions: A valid serial object
+ * Postconditions: A valid serial object with no buffered data
+ */
 void modemClear(USARTClass *serial);
 
 struct modem *modemInit(USARTClass *serial, int timeout)
 {
-  if(!serial)
+  /* Just verify that we have valid information */
+  if(!serial || timeout <= 0)
     return NULL;
+  /* Attempt to allocate memory for the modem */
   struct modem *modem = (struct modem *)malloc(sizeof(struct modem));
   if(!modem) {
     DEBUGSERIAL.print("Not enough memory!\r\n");
     return NULL;
   }
+  /* Initialize our information to a state of ignorance */
   memset(modem, 0, sizeof(*modem));
   modem->state = UNATTACHED;
   modem->statecheck = 0;
   modem->packetboundary = 0;
   modem->serial = serial;
-  const int modembaud = 19200;
-  modem->serial->begin(modembaud);
+  modem->serial->begin(MODEMBAUD);
+  /* Start fixing that ignorance */
   if(modemCheckAttached(modem, timeout)) {
     modem->state = ATTACHED;
   }
   else {
+    /* We couldn't find a modem on the specified port,
+     * so we're done here.
+     */
     free(modem);
     modem = NULL;
   }
@@ -70,7 +101,8 @@ void modemFree(struct modem *modem)
 {
   /* Break out of any existing connections before trying to reset */
   modem->serial->write(IDENTIFY);
-  delay(100);
+  delay(500);
+  /* Put the modem in its default state */
   modem->serial->write(CMD_RESET);
   free(modem);
 }
@@ -87,6 +119,7 @@ bool modemCheckAttached(struct modem *modem, int timeout)
 {
   /* The modem needs to be sent a +++ before it can accept commands.
    * After recieving it, it will respond with OK signifying that it is ready.
+   * But don't look for the +++ for longer than timeout milliseconds
    */
   int inputstate = 0;
   for(; timeout > 0 && inputstate < GOODRESPONSELEN;) {
@@ -98,37 +131,63 @@ bool modemCheckAttached(struct modem *modem, int timeout)
     timeout -= 1000;
     DEBUGPRINT("Checking for modem connection\r\n");
     if(modem->serial->available() > 0) {
+      /* We got some information, now compare it to the expected return.
+       * Basically an implementation of a miniature state machine for strings
+       */
       while(modem->serial->available() > 0 && inputstate < GOODRESPONSELEN) {
 	char check = modem->serial->read();
 	if(check == GOODRESPONSE[inputstate]) {
+	  /* Got the expected character, so advance to the next state */
 	  inputstate++;
 	}
 	else {
 	  if(check == GOODRESPONSE[0]) {
+	    /* Not the expected character, but it does match the first expected
+	     * character, so don't fall to the first state, but the second
+	     */
 	    inputstate = 1;
 	  }
 	  else {
+	    /* No idea what was just recieved, so go back home */
 	    inputstate = 0;
 	  }
 	}
       }
     }
   }
+  /* Check that we reached the final state */
   if(inputstate == GOODRESPONSELEN) {
+    /* We did :) */
     modem->state = ATTACHED;
     return true;
   }
   else {
+    /* Nope :( */
     modem->state = UNATTACHED;
     return false;
   }
+  /* For future reference:
+   * > ats360?
+   * < 00000040f000
+   * is an unconnected modem, whereas
+   * > ats360?
+   * < 00000040f300
+   * is connected. Similarly,
+   * > ats361?
+   * < 36
+   * is unconnected, and
+   * > ats361?
+   * < 32
+   * is connected. In the future, it would be better to query the
+   * modems initial state, rather than just trying to clear it to
+   * a known state.
+   * Warning: These are not documented, and are only what
+   * have been observed. Results may vary
+   */
+  /* Clear out anything else the modem may have sent */
   modemClear(modem->serial);
-  modem->serial->write("+++");
-  while(modem->serial->available() == 0);
-  delay(10);
-  modemClear(modem->serial);
+  /* Close any connections, so the modems state matches our default */
   modem->serial->write("ath\r\n");
-  modem->serial->flush();
   while(modem->serial->available() == 0);
   delay(10);
   modemClear(modem->serial);

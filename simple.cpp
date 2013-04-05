@@ -9,26 +9,38 @@
 
 #include "TinyGPS.h"
 
-void initMotorController(void);
-
+/* Group our stuff used for our program, not just program wide globals */
 struct kayak {
+  /* Used to parse GPS data */
   TinyGPS gpsdata;
+  /* Modem object, keeps track of the state of the modem */
   struct modem *modem;
+  /* Motor controller object, keeps track of the state of the motors and battery,
+   * provides interface between the two
+   */
   struct motorctrl *motor;
+  /* The total power used by the motors */
   unsigned powerused;
+  /* The current heading of the kayak, relative to magnetic north */
   float heading;
 } kayak;
 
+/* Used to send all of the data that Santa Clara's packet format specifies */
 void sendPacket();
-void startTimer(Tc *tc, uint32_t channel, IRQn_Type irq, uint32_t frequency);
-void Wire_Init(void);
 
 void setup(void)
 {
+  /* Basic initialization for assumed pieces of hardware...
+   * Debug output (USB connection), GPS (3.3 V TTL Serial)
+   * and the compass (I2C)
+   */
   DEBUGSERIAL.begin(9600);
   GPSSERIAL.begin(38400);
   Wire.begin();
-
+  
+  /* The more involved pieces of hardware are handled in a more
+   * more robust manner... Modem and motor controller
+   */
   DEBUGPRINT("Attempting to connect the modem\r\n");
   kayak.modem = modemInit(&MODEMSERIAL, 1000);
   if(!kayak.modem) {
@@ -45,22 +57,26 @@ void setup(void)
   else {
     DEBUGSERIAL.print("Motor controller connected\r\n");
   }
-  startTimer(TC1, 0, TC3_IRQn, 1);
 }
 
 void loop()
 {
+  /* For sanity, don't pound the motor controller with commands
+   * These should be in the scheduler when it's ready
+   */
   delay(100);
   if(kayak.motor) {
+    /* Update our statistics on the motor controllers power usage */
     motorCheckVolt(kayak.motor);
     motorCheckAmp(kayak.motor);
-    modemUpdate(kayak.modem);
   }
+  /* Update the powers sent to the motor controller */
   if(kayak.modem && kayak.motor && modemHasPacket(kayak.modem)) {
     motorSetSpeed(kayak.motor,
 		  modemForwardPwr(kayak.modem),
 		  modemRotationPwr(kayak.modem));
   }
+  /* Update the GPS information; longitude, latitude, number of satellites, etc. */
   if(GPSSERIAL.available() > 0) {
     bool encoded = false;
     // DEBUGSERIAL.write("Reading GPS Data:\r\n");
@@ -71,14 +87,24 @@ void loop()
     }
     DEBUGSERIAL.write("\r\n");
   }
+  /* Update the compass information, the kayaks heading relative to North */
   kayak.heading = compassBearing();
-  if(modemNeedsPacket(kayak.modem)) {
-    sendPacket();
+  /* Update the modem information, and if we need to send information back
+   * to the base, do so now.
+   */
+  if(kayak.modem) {
+    modemUpdate(kayak.modem);
+    if(modemNeedsPacket(kayak.modem)) {
+      sendPacket();
+    }
   }
 }
 
 void sendPacket()
 {
+  /* Packet structure corresponding to Santa Clara's format,
+   * mostly just querying TinyGPS for information
+   */
   struct {
     /* Compass Data */
     short heading;
@@ -95,12 +121,16 @@ void sendPacket()
     short groundspeed;
   } packet;
   memset(&packet, 0, sizeof(packet));
+  /* Fill out the structure with the required data */
+  /* Compass heading */
   packet.heading = kayak.heading;
   int year;
   byte month, day, hour, minute, second;
+  /* GPS time */
   kayak.gpsdata.crack_datetime(&year, &month, &day, &hour,
 			       &minute, &second);
   packet.time = hour * 3600.0f + minute * 60.0f + second;
+  /* GPS latitude and longitude */
   long lat, lng;
   kayak.gpsdata.get_position(&lat, &lng);
   if(lat < 0) {
@@ -119,11 +149,13 @@ void sendPacket()
   }
   packet.lat = (int)lat;
   packet.lng = (int)lng;
+  /* Misc. GPS information */
   packet.satellites = (byte)kayak.gpsdata.satellites();
   packet.hdilution = (short)kayak.gpsdata.hdop();
   packet.course = (short)kayak.gpsdata.f_course() * 100;
   packet.magcourse = (short)kayak.gpsdata.f_course() * 100;
   packet.groundspeed = (short)kayak.gpsdata.f_speed_kmph();
+  /* For verification */
   DEBUGSERIAL.print("\r\nLatitude: ");
   DEBUGSERIAL.print(packet.lat);
   DEBUGSERIAL.println(packet.lathem);
@@ -141,5 +173,6 @@ void sendPacket()
   DEBUGSERIAL.print("Horizontal Dilution: ");
   DEBUGSERIAL.println(packet.hdilution);
   if(kayak.modem)
+    /* Send the packet that we filled out */
     modemSendPacket(kayak.modem, &packet, sizeof(packet));
 }
