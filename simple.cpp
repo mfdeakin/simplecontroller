@@ -67,7 +67,7 @@ void loop()
   delay(100);
   if(kayak.motor) {
     /* Update our statistics on the motor controllers power usage */
-    motorCheckVolt(kayak.motor);
+    motorCheckWatt(kayak.motor);
     motorCheckAmp(kayak.motor);
   }
   /* Update the powers sent to the motor controller */

@@ -105,7 +105,7 @@ struct channelpair motorCheckAmp(struct motorctrl *motor)
   return values;
 }
 
-struct channelpair motorCheckVolt(struct motorctrl *motor)
+struct channelpair motorCheckWatt(struct motorctrl *motor)
 {
   /* Motor Response Format:
    * ## ##\r

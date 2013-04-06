@@ -6,20 +6,20 @@
 
 float compassBearing()
 { 
-  Wire.beginTransmission(COMPASSADDRESS);
-  Wire.write(2);
-  Wire.endTransmission();
+  COMPASSWIRE.beginTransmission(COMPASSADDRESS);
+  COMPASSWIRE.write(2);
+  COMPASSWIRE.endTransmission();
   
-  Wire.requestFrom(COMPASSADDRESS, 2);
+  COMPASSWIRE.requestFrom(COMPASSADDRESS, 2);
 
 //Return error float if no compass present
   union {
     byte byteval[2];
     short intval;
   } bytes;
-  while(!Wire.available());
-  bytes.byteval[1] = Wire.read();
-  bytes.byteval[0] = Wire.read();
+  while(!COMPASSWIRE.available());
+  bytes.byteval[1] = COMPASSWIRE.read();
+  bytes.byteval[0] = COMPASSWIRE.read();
 //Read 2 bytes, combine and divide by 10 to return value to one
 //decimal value
   float bearing = bytes.intval;
