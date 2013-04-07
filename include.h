@@ -21,6 +21,9 @@
 
 #define COMPASSWIRE Wire
 
+#define INT_MAX 0x7FFFFFFF
+#define UINT_MAX 0xFFFFFFFF
+
 /* Macros for easy switching to and from a debug and release version */
 #ifndef RELEASE_VERSION
 #define DEBUGPRINT(str) DEBUGSERIAL.print(str)

@@ -2,29 +2,55 @@
 #include "include.h"
 #include "compass.h"
 
+#include "scheduler.h"
+
 #define COMPASSADDRESS 0x60
 
-float compassBearing()
-{ 
-  COMPASSWIRE.beginTransmission(COMPASSADDRESS);
-  COMPASSWIRE.write(2);
-  COMPASSWIRE.endTransmission();
+struct compass {
+  TwoWire *wire;
+  float bearing;
+};
+
+void compassUpdate(struct compass *compass);
+
+struct compass *compassInit(TwoWire *wire)
+{
+  struct compass *compass =
+    (struct compass *)malloc(sizeof(struct compass));
+  if(!compass) {
+    DEBUGSERIAL.print("Could not allocate memory for the compass!\r\n");
+    return NULL;
+  }
+  compass->wire = wire;
+  compass->wire->begin();
+  compass->bearing = 0.0 / 0.0;
+  registerTimer(100, (void (*)(void *))compassUpdate, compass);
+  return compass;
+}
+
+void compassUpdate(struct compass *compass)
+{
+  compass->wire->beginTransmission(COMPASSADDRESS);
+  compass->wire->write(2);
+  compass->wire->endTransmission();
   
-  COMPASSWIRE.requestFrom(COMPASSADDRESS, 2);
+  compass->wire->requestFrom(COMPASSADDRESS, 2);
 
 //Return error float if no compass present
   union {
     byte byteval[2];
     short intval;
   } bytes;
-  while(!COMPASSWIRE.available());
-  bytes.byteval[1] = COMPASSWIRE.read();
-  bytes.byteval[0] = COMPASSWIRE.read();
+  while(!compass->wire->available());
+  bytes.byteval[1] = compass->wire->read();
+  bytes.byteval[0] = compass->wire->read();
 //Read 2 bytes, combine and divide by 10 to return value to one
 //decimal value
-  float bearing = bytes.intval;
-  bearing /= 10.0;
-  DEBUGSERIAL.print("\r\nCompass Value: ");
-  DEBUGSERIAL.println(bytes.intval);
-  return bearing;
+  compass->bearing = bytes.intval / 10.0;
+  registerTimer(100, (void (*)(void *))compassUpdate, compass);
+}
+
+float compassBearing(struct compass *compass)
+{ 
+  return compass->bearing;
 }

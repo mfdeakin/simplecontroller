@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include <Wire/Wire.h>
 #include "include.h"
+#include "scheduler.h"
 #include "list.h"
 #include "modem.h"
 #include "motor.h"
@@ -13,6 +14,8 @@
 struct kayak {
   /* Used to parse GPS data */
   TinyGPS gpsdata;
+  /* Compass object, keeps track of the bearing of the kayak */
+  struct compass *compass;
   /* Modem object, keeps track of the state of the modem */
   struct modem *modem;
   /* Motor controller object, keeps track of the state of the motors and battery,
@@ -21,12 +24,13 @@ struct kayak {
   struct motorctrl *motor;
   /* The total power used by the motors */
   unsigned powerused;
-  /* The current heading of the kayak, relative to magnetic north */
-  float heading;
 } kayak;
 
 /* Used to send all of the data that Santa Clara's packet format specifies */
 void sendPacket();
+
+void enableTRNG(void);
+uint32_t trandom(void);
 
 void setup(void)
 {
@@ -34,9 +38,9 @@ void setup(void)
    * Debug output (USB connection), GPS (3.3 V TTL Serial)
    * and the compass (I2C)
    */
-  DEBUGSERIAL.begin(9600);
+  DEBUGSERIAL.begin(115200);
+  schedulerInit();
   GPSSERIAL.begin(38400);
-  Wire.begin();
   
   /* The more involved pieces of hardware are handled in a more
    * more robust manner... Modem and motor controller
@@ -57,6 +61,8 @@ void setup(void)
   else {
     DEBUGSERIAL.print("Motor controller connected\r\n");
   }
+  DEBUGPRINT("Initializing the compass\r\n");
+  kayak.compass = compassInit(&COMPASSWIRE);
 }
 
 void loop()
@@ -65,6 +71,9 @@ void loop()
    * These should be in the scheduler when it's ready
    */
   delay(100);
+  static int i = 0;
+  i++;
+  
   if(kayak.motor) {
     /* Update our statistics on the motor controllers power usage */
     motorCheckWatt(kayak.motor);
@@ -87,8 +96,6 @@ void loop()
     }
     DEBUGSERIAL.write("\r\n");
   }
-  /* Update the compass information, the kayaks heading relative to North */
-  kayak.heading = compassBearing();
   /* Update the modem information, and if we need to send information back
    * to the base, do so now.
    */
@@ -123,7 +130,8 @@ void sendPacket()
   memset(&packet, 0, sizeof(packet));
   /* Fill out the structure with the required data */
   /* Compass heading */
-  packet.heading = kayak.heading;
+  if(kayak.compass)
+    packet.heading = compassBearing(kayak.compass);
   int year;
   byte month, day, hour, minute, second;
   /* GPS time */
@@ -175,4 +183,22 @@ void sendPacket()
   if(kayak.modem)
     /* Send the packet that we filled out */
     modemSendPacket(kayak.modem, &packet, sizeof(packet));
+}
+
+void enableTRNG(void)
+{
+  pmc_enable_periph_clk(ID_TRNG);
+}
+
+uint32_t trandom(void)
+{
+  static bool enabled = false;
+  if(!enabled) {
+    pmc_enable_periph_clk(ID_TRNG);
+    TRNG->TRNG_IDR = 0xFFFFFFFF;
+    TRNG->TRNG_CR = TRNG_CR_KEY(0x524e47) | TRNG_CR_ENABLE;
+    enabled = true;
+  }
+  while (! (TRNG->TRNG_ISR & TRNG_ISR_DATRDY));
+  return TRNG->TRNG_ODATA;
 }

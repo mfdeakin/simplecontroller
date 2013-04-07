@@ -13,8 +13,11 @@ const int GOODRESPONSELEN = 2;
 
 const char *CMD_RESET = "ATZ\n";
 
-/* The ICL3232 chip has a minimum support for a maximum of 250000 bits/s */
-const int MODEMBAUD = 250000;
+/* The ICL323 chip has a minimum limit on the maximum baud rate at 250000,
+ * however we need a baud rate that the Due can run at, so choose the next
+ * one down.
+ */
+const int MODEMBAUD = 115200;
 
 float fltHalfToSingle(void *value);
 float fltSingleToHalf(void *value);
@@ -195,15 +198,22 @@ bool modemCheckAttached(struct modem *modem, int timeout)
 
 void modemUpdate(struct modem *modem)
 {
+  /* Updates the modems state based on what has been recieved */
   if(modem->serial->available() > 0) {
     if(modem->state == CONNECTED)
       DEBUGPRINT("Checking for floating point values or for NO CARRIER\r\n");
     while(modem->serial->available() > 0) {
       if(modem->state != CONNECTED) {
+	/* If the modem is not connected, then we need to look for
+	 * when a connection is made. Nothing else should be returned
+	 * by the modem, I hope.
+	 * Do this with a state machine
+	 */
 	char check = modem->serial->read();
 	if(CONNSTR[modem->statecheck] == check) {
 	  modem->statecheck++;
 	  if(modem->statecheck >= CONNSTRLEN) {
+	    /* We have connected!!!1! */
 	    modem->state = CONNECTED;
 	    modem->statecheck = 0;
 	    DEBUGSERIAL.print("Modem Connected\r\n");
