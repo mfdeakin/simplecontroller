@@ -4,7 +4,8 @@
 
 struct scheduler;
 
-void schedulerInit(void);
+struct scheduler *schedulerInit(void);
 void registerTimer(unsigned deltams, void (*proc)(void *data), void *data);
+bool schedulerProcessEvents(struct scheduler *s);
 
 #endif

@@ -22,6 +22,8 @@ struct kayak {
    * provides interface between the two
    */
   struct motorctrl *motor;
+  /* Scheduler object, used to schedule jobs and what not */
+  struct scheduler *scheduler;
   /* The total power used by the motors */
   unsigned powerused;
 } kayak;
@@ -39,7 +41,7 @@ void setup(void)
    * and the compass (I2C)
    */
   DEBUGSERIAL.begin(115200);
-  schedulerInit();
+  kayak.scheduler = schedulerInit();
   GPSSERIAL.begin(38400);
   
   /* The more involved pieces of hardware are handled in a more
@@ -67,12 +69,18 @@ void setup(void)
 
 void loop()
 {
+  /* Puts the processor to sleep until an interrupt occurs (such as a timer,
+   * or serial input.
+   * From:
+   * http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0552a/CIHCAEJD.html
+   */
+  __WFI();
+  /* The scheduler may have gotten some events to process, so let it run */
+  while(schedulerProcessEvents(kayak.scheduler));
   /* For sanity, don't pound the motor controller with commands
    * These should be in the scheduler when it's ready
    */
   delay(100);
-  static int i = 0;
-  i++;
   
   if(kayak.motor) {
     /* Update our statistics on the motor controllers power usage */

@@ -15,42 +15,43 @@ void compassUpdate(struct compass *compass);
 
 struct compass *compassInit(TwoWire *wire)
 {
-  struct compass *compass =
+  struct compass *cmp =
     (struct compass *)malloc(sizeof(struct compass));
-  if(!compass) {
+  if(!cmp) {
     DEBUGSERIAL.print("Could not allocate memory for the compass!\r\n");
     return NULL;
   }
-  compass->wire = wire;
-  compass->wire->begin();
-  compass->bearing = 0.0 / 0.0;
-  registerTimer(100, (void (*)(void *))compassUpdate, compass);
-  return compass;
+  cmp->wire = wire;
+  cmp->wire->begin();
+  cmp->bearing = 0.0 / 0.0;
+  registerTimer(100, (void (*)(void *))compassUpdate, cmp);
+  return cmp;
 }
 
-void compassUpdate(struct compass *compass)
+void compassUpdate(struct compass *cmp)
 {
-  compass->wire->beginTransmission(COMPASSADDRESS);
-  compass->wire->write(2);
-  compass->wire->endTransmission();
+  DEBUGPRINT("Compass Update\r\n");
+  cmp->wire->beginTransmission(COMPASSADDRESS);
+  cmp->wire->write(2);
+  cmp->wire->endTransmission();
   
-  compass->wire->requestFrom(COMPASSADDRESS, 2);
+  cmp->wire->requestFrom(COMPASSADDRESS, 2);
 
 //Return error float if no compass present
   union {
     byte byteval[2];
     short intval;
   } bytes;
-  while(!compass->wire->available());
-  bytes.byteval[1] = compass->wire->read();
-  bytes.byteval[0] = compass->wire->read();
+  while(!cmp->wire->available());
+  bytes.byteval[1] = cmp->wire->read();
+  bytes.byteval[0] = cmp->wire->read();
 //Read 2 bytes, combine and divide by 10 to return value to one
 //decimal value
-  compass->bearing = bytes.intval / 10.0;
-  registerTimer(100, (void (*)(void *))compassUpdate, compass);
+  cmp->bearing = bytes.intval / 10.0;
+  registerTimer(100, (void (*)(void *))compassUpdate, cmp);
 }
 
-float compassBearing(struct compass *compass)
+float compassBearing(struct compass *cmp)
 { 
-  return compass->bearing;
+  return cmp->bearing;
 }

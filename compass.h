@@ -6,7 +6,7 @@
 
 #include "include.h"
 
-struct compass *compass;
+struct compass;
 
 /* Returns a valid compass structure on success, NULL on failure
  * Preconditions: The scheduler is initialized

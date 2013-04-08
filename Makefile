@@ -22,12 +22,12 @@ CXXOBJCOPY=$(ARDDIR)/build/linux/work/hardware/tools/g++_arm_none_eabi/bin/arm-n
 UPLOAD=$(ARDDIR)/build/linux/work/hardware/tools/bossac
 UPLOADOPTS=-U false -e -w -v -b
 OBJECTOUTDIR=objects
-INCDIRS=-I$(SYSDIR)/libsam -I$(SYSDIR)/CMSIS/CMSIS/Include/ -I$(SAMDIR)/libraries/ -I$(SYSDIR)/CMSIS/Device/ATMEL/ -I$(SAMDIR)/cores/arduino -I$(SAMDIR)/variants/arduino_due_x -I$(LIBDIR)/TinyGPS
+INCDIRS=-I$(SYSDIR)/libsam -I$(SYSDIR)/CMSIS/CMSIS/Include/ -I$(SAMDIR)/libraries/ -I$(SYSDIR)/CMSIS/Device/ATMEL/ -I$(SAMDIR)/cores/arduino -I$(SAMDIR)/variants/arduino_due_x -I$(LIBDIR)/TinyGPS -I$(SYSDIR)/CMSIS/Device/ATMEL/sam3xa/include/
 CFLAGS=-g -Os -w -ffunction-sections -fdata-sections -nostdlib --param max-inline-insns-single=500 -Dprintf=iprintf -mcpu=cortex-m3 -DF_CPU=84000000L -DARDUINO=152 -D__SAM3X8E__ -mthumb -DUSB_PID=0x003e -DUSB_VID=0x2341 -DUSBCON
 CXXFLAGS=-g -Os -w -ffunction-sections -fdata-sections -nostdlib --param max-inline-insns-single=500 -fno-rtti -fno-exceptions -Dprintf=iprintf -mcpu=cortex-m3 -DF_CPU=84000000L -DARDUINO=152 -D__SAM3X8E__ -mthumb -DUSB_PID=0x003e -DUSB_VID=0x2341 -DUSBCON
 LINKFLAGS=-Os -Wl,--gc-sections -mcpu=cortex-m3 -T/home/michael/Documents/Programming/arduino/Arduino/build/linux/work/hardware/arduino/sam/variants/arduino_due_x/linker_scripts/gcc/flash.ld -Wl,--cref -Wl,--check-sections -Wl,--gc-sections -Wl,--entry=Reset_Handler -Wl,--unresolved-symbols=report-all -Wl,--warn-common -Wl,--warn-section-align -Wl,--warn-unresolved-symbols 
 
-OBJECTS=simple.o scheduler.o modem.o motor.o list.o heap.o compass.o
+OBJECTS=simple.o scheduler.o modem.o motor.o list.o heap.o compass.o semaphore.o
 
 $(OBJECTOUTDIR)/program.cpp.bin: $(OBJECTS)
 	@echo "Linking program"
