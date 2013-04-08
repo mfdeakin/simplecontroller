@@ -4,6 +4,7 @@
 
 #include <Arduino.h>
 #include <assert.h>
+#include "semaphore.h"
 #include "heap.h"
 #include "list.h"
 
@@ -17,7 +18,11 @@ typedef struct event {
   void *data;
 } event;
 
-heap *queued;
+struct scheduler {
+  heap *queued;
+  heap *ready;
+  int readysem;
+} *scheduler = NULL;
 
 int cmpTime(event *lhs, event *rhs);
 void startTimer(Tc *tc, uint32_t channel, IRQn_Type irq, uint32_t frequency);
@@ -31,8 +36,10 @@ void registerTimer(unsigned deltams, void (*proc)(void *data), void *data)
   evt->rticks = deltams + GetTickCount();
   evt->proc = proc;
   evt->data = data;
-  hpAdd(queued, evt);
-  event *newtop = (event *)hpPeek(queued);
+  semDown(&scheduler->readysem);
+  hpAdd(scheduler->queued, evt);
+  event *newtop = (event *)hpPeek(scheduler->queued);
+  semUp(&scheduler->readysem);
   float freq = 1000.0f / (newtop->rticks - GetTickCount());
   DEBUGPRINT("Registering timer for ");
   DEBUGPRINT(deltams);
@@ -44,49 +51,87 @@ void registerTimer(unsigned deltams, void (*proc)(void *data), void *data)
 
 void TC3_Handler()
 {
-  int t1 = GetTickCount();
-  event *evt = (event *)hpTop(queued);
-  event *next = (event *)hpPeek(queued);
-  /* Let any other timers on TC1 go */
-  TC_GetStatus(TC1, 0);
-  /* We register the next timer (or disable the timer)
-   * before we execute the event code because the event
-   * code may need to register another timer
+  /* This is called by the sam3x code when it recieves a timer interrupt.
+   * It will not be called again before the GetStatus is called.
+   * We need to do three things:
+   * Get the event to be processed
+   * Put it into the ready queue
+   * Start the timer for the next event
    */
-  DEBUGPRINT("\r\nHandling timer event\r\n");
-  if(next) {
-    int deltat = next->rticks - t1;
-    if(deltat < 1) {
-      DEBUGPRINT("Starting timer immediately from now\r\n");
-      /* We have another event which is due now, so process it ASAP */
-      startTimer(TC1, 0, TC3_IRQn, 10000);
+  int t1 = GetTickCount();
+  int islocked = semTryDown(&scheduler->readysem);
+  if(islocked) {
+    event *evt = (event *)hpTop(scheduler->queued);
+    event *next = (event *)hpPeek(scheduler->queued);
+    
+    hpAdd(scheduler->ready, evt);
+    /* Let any other timers on TC1 go */
+    TC_GetStatus(TC1, 0);
+    semUp(&scheduler->readysem);
+    /* We register the next timer (or disable the timer)
+     * before we execute the event code because the event
+     * code may need to register another timer
+     */
+    DEBUGPRINT("\r\nHandling timer event\r\n");
+    if(next) {
+      int deltat = next->rticks - t1;
+      /* deltat may be negative */
+      if(deltat < 1) {
+	DEBUGPRINT("Starting timer immediately from now\r\n");
+	/* We have another event which is due now, so process it ASAP.
+	 * I'm not certain how fast we can get the timer to go,
+	 * hopefully 0.1 ms is good enough.
+	 * Faster timers don't seem to work
+	 */
+	startTimer(TC1, 0, TC3_IRQn, 10000);
+      }
+      else {
+	float freq = 1000.0f / deltat;
+	DEBUGPRINT("Starting timer for ");
+	DEBUGPRINT(deltat);
+	DEBUGPRINT(" ms from now.\r\n");
+	startTimer(TC1, 0, TC3_IRQn, freq);
+      }
     }
     else {
-      float freq = 1000.0f / deltat;
-      DEBUGPRINT("Starting timer for ");
-      DEBUGPRINT(deltat);
-      DEBUGPRINT(" ms from now.\r\n");
-      startTimer(TC1, 0, TC3_IRQn, freq);
+      /* Turn the clock off, we shouldn't need it
+       * Save our entropy!!!
+       */
+      DEBUGPRINT("Turning timer off\r\n");
+      pmc_disable_periph_clk((uint32_t)TC3_IRQn);
     }
   }
   else {
-    /* Turn the clock off, we shouldn't need it
-     * Save our entropy!!!
-     */
-    DEBUGPRINT("Turning timer off\r\n");
-    pmc_disable_periph_clk((uint32_t)TC3_IRQn);
-  }
-  if(evt) {
-    DEBUGPRINT("Running event code\r\n");
-    if(evt->proc)
-      evt->proc(evt->data);
-    free(evt);
+    /* We didn't get the lock, so try again after letting the other code go */
+    startTimer(TC1, 0, TC3_IRQn, 10000);
   }
 }
 
-void schedulerInit(void)
+struct scheduler *schedulerInit(void)
 {
-  queued = hpCreate((int (*)(void *, void *))cmpTime);
+  /* The scheduler is a singleton :( */
+  if(scheduler)
+    return NULL;
+  scheduler = (struct scheduler *)malloc(sizeof(struct scheduler));
+  if(!scheduler) {
+    DEBUGSERIAL.print("Could not allocate enough memory!\r\n");
+    return NULL;
+  }
+  scheduler->queued = hpCreate((int (*)(void *, void *))cmpTime);
+  scheduler->ready = hpCreate((int (*)(void *, void *))cmpTime);
+  scheduler->readysem = 1;
+  return scheduler;
+}
+
+bool schedulerProcessEvents(struct scheduler *s)
+{
+  event *evt = (event *)hpTop(s->ready);
+  if(evt) {
+    assert(evt->proc);
+    evt->proc(evt->data);
+    return true;
+  }
+  return false;
 }
 
 int cmpTime(event *lhs, event *rhs)
