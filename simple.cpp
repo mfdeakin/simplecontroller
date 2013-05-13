@@ -70,7 +70,7 @@ void setup(void)
 void loop()
 {
   /* Puts the processor to sleep until an interrupt occurs (such as a timer,
-   * or serial input.
+   * or serial input.)
    * From:
    * http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0552a/CIHCAEJD.html
    */
@@ -107,11 +107,8 @@ void loop()
   /* Update the modem information, and if we need to send information back
    * to the base, do so now.
    */
-  if(kayak.modem) {
-    modemUpdate(kayak.modem);
-    if(modemNeedsPacket(kayak.modem)) {
+  if(kayak.modem && modemNeedsPacket(kayak.modem)) {
       sendPacket();
-    }
   }
 }
 

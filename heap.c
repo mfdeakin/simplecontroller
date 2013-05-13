@@ -13,10 +13,10 @@ struct heap
 
 struct heap *hpCreate(int (*compare)(void *, void *))
 {
-	struct heap *hp = (struct heap *)malloc(sizeof(struct heap));
+	struct heap *hp = malloc(sizeof(struct heap));
 	hp->compare = compare;
 	int DEFAULTMAX = 64;
-	hp->heap = (void **)malloc(sizeof(void *[DEFAULTMAX]));
+	hp->heap = malloc(sizeof(void *[DEFAULTMAX]));
 	hp->max = DEFAULTMAX;
 	hp->count = 0;
 	return hp;
@@ -33,7 +33,7 @@ void hpAdd(struct heap *hp, void *data)
 	hp->count++;
 	if(hp->count >= hp->max) {
 		hp->max *= 2;
-		void **buffer = (void **)malloc(sizeof(void *[hp->max]));
+		void **buffer = malloc(sizeof(void *[hp->max]));
 		unsigned i;
 		for(i = 0; i < hp->count - 1; i++)
 			buffer[i] = hp->heap[i];
@@ -79,11 +79,13 @@ void *hpTop(struct heap *hp)
 	hp->heap[0] = hp->heap[hp->count];
 	hp->heap[hp->count] = NULL;
 	unsigned pos = 1;
-	while(pos * 2 < hp->count &&
-				(hp->compare(hp->heap[pos - 1], hp->heap[pos * 2 - 1]) < 0 ||
-				 hp->compare(hp->heap[pos - 1], hp->heap[pos * 2]) < 0)) {
+	while((pos * 2 < hp->count &&
+				 hp->compare(hp->heap[pos - 1], hp->heap[pos * 2]) < 0) ||
+	      (pos*2 - 1 < hp->count &&
+				 hp->compare(hp->heap[pos - 1], hp->heap[pos * 2 - 1]) < 0)) {
 		void *buffer;
-		if(hp->compare(hp->heap[pos * 2 - 1], hp->heap[pos * 2]) > 0) {
+		if(pos * 2 >= hp->count ||
+			 hp->compare(hp->heap[pos * 2 - 1], hp->heap[pos * 2]) > 0) {
 			buffer = hp->heap[pos - 1];
 			hp->heap[pos - 1] = hp->heap[pos * 2 - 1];
 			hp->heap[pos * 2 - 1] = buffer;

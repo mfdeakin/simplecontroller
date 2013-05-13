@@ -1,6 +1,8 @@
 
 #include "modem.h"
 
+#include "scheduler.h"
+
 const char *IDENTIFY = "+++";
 const char *CONNSTR = "CONNECT";
 const int CONNSTRLEN = 7;
@@ -95,8 +97,9 @@ struct modem *modemInit(USARTClass *serial, int timeout)
      * so we're done here.
      */
     free(modem);
-    modem = NULL;
+    return NULL;
   }
+  registerTimer(100, (void (*)(void *))modemUpdate, modem);
   return modem;
 }
 
@@ -273,6 +276,7 @@ void modemUpdate(struct modem *modem)
       DEBUGPRINT("\r\n");
     }
   }
+  registerTimer(100, (void (*)(void *))modemUpdate, modem);
 }
 
 void modemSendPacket(struct modem *modem, void *packet, size_t size)
