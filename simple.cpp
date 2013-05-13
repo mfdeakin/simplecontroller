@@ -77,17 +77,8 @@ void loop()
   __WFI();
   /* The scheduler may have gotten some events to process, so let it run */
   while(schedulerProcessEvents(kayak.scheduler));
-  /* For sanity, don't pound the motor controller with commands
-   * These should be in the scheduler when it's ready
-   */
-  delay(100);
-  
-  if(kayak.motor) {
-    /* Update our statistics on the motor controllers power usage */
-    motorCheckWatt(kayak.motor);
-    motorCheckAmp(kayak.motor);
-  }
-  /* Update the powers sent to the motor controller */
+
+  /* Update the powers sent to the motors */
   if(kayak.modem && kayak.motor && modemHasPacket(kayak.modem)) {
     motorSetSpeed(kayak.motor,
 		  modemForwardPwr(kayak.modem),

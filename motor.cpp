@@ -1,6 +1,8 @@
 
 #include "motor.h"
 
+#include "scheduler.h"
+
 /* Structure used to keep up with the state of the motor controller */
 struct motorctrl
 {
@@ -65,6 +67,11 @@ struct motorctrl *motorInit(USARTClass *serial, int timeout)
     free(motor);
     return NULL;
   }
+  /* Once a second, query the motor controller
+   * on how much power it's consuming
+   */
+  registerTimer(1000, (void (*)(void *))motorCheckWatt, motor);
+  registerTimer(1000, (void (*)(void *))motorCheckAmp, motor);
   return motor;
 }
 
@@ -102,6 +109,7 @@ struct channelpair motorCheckAmp(struct motorctrl *motor)
   DEBUGSERIAL.print(", ");
   DEBUGSERIAL.print(values.cB);
   DEBUGSERIAL.print("\r\n");
+  registerTimer(1000, (void (*)(void *))motorCheckAmp, motor);
   return values;
 }
 
@@ -132,6 +140,7 @@ struct channelpair motorCheckWatt(struct motorctrl *motor)
   DEBUGSERIAL.print(", ");
   DEBUGSERIAL.print(values.cB);
   DEBUGSERIAL.print("\r\n");
+  registerTimer(1000, (void (*)(void *))motorCheckWatt, motor);
   return values;
 }
 

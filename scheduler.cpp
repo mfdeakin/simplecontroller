@@ -11,7 +11,7 @@
 typedef struct event {
   /* Ticks are in approximage ms, according to the libsam library.
    * timetick.h, line 38
-   * rticks is the absolute number of ticks before the 
+   * rticks is the absolute number of ticks before the event is to be processed
    */
   unsigned rticks;
   void (*proc)(void *data);
@@ -22,6 +22,7 @@ struct scheduler {
   heap *queued;
   heap *ready;
   int readysem;
+  unsigned currentId;
 } *scheduler = NULL;
 
 int cmpTime(event *lhs, event *rhs);
@@ -63,6 +64,12 @@ void TC3_Handler()
   if(islocked) {
     event *evt = (event *)hpTop(scheduler->queued);
     event *next = (event *)hpPeek(scheduler->queued);
+    /* The schedule heap needs to be in FIFO order,
+     * so set base the ID on the number of events that
+     * have entered the heap.
+     */
+    evt->rticks = scheduler->currentId;
+    scheduler->currentId++;
     
     hpAdd(scheduler->ready, evt);
     /* Let any other timers on TC1 go */
@@ -119,6 +126,7 @@ struct scheduler *schedulerInit(void)
   }
   scheduler->queued = hpCreate((int (*)(void *, void *))cmpTime);
   scheduler->ready = hpCreate((int (*)(void *, void *))cmpTime);
+  scheduler->currentId = 1;
   scheduler->readysem = 1;
   return scheduler;
 }
